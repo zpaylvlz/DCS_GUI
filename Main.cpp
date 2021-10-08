@@ -8,6 +8,7 @@
 #include <atlstr.h>//to use Cstring
 #include <iostream>
 #include <fstream>
+#include <shlobj.h>
 
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
@@ -25,13 +26,14 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")//Se
 #define PRGS_DONE 120
 #define ERROR_CONFIRM 121
 #define SEND_ERROR_MSG 122
+#define SELECT_FOLDER 123
 #define PGSB_Update 689
 
 HMENU hMenu;
 HWND Error_Window;
 HWND hEdit_Database_IP, hEdit_Database_Port, hEdit_Database_Account, hEdit_Database_Password,
 hEdit_Datatable_Name, hEdit_Setup_Time, hEdit_Process_Time, hEdit_Postop_Time, hEdit_Search_Param,
-hEdit_Time_Gap, hCombox_KPI, hRBTN_ITER, hRBTN_TIME;// Handle of MainWindow controls
+hEdit_Time_Gap, hEdit_Search_Depth, hCombox_KPI, hRBTN_ITER, hRBTN_TIME;// Handle of MainWindow controls
 
 HWND PreprocessProgressBar, RunTimeProgressBar, hEdit_FileName, hEdit_FilePath, 
 hBtn_Cancel, hBtn_Prev, hBtn_Done;// Handle of ShowProgress controls
@@ -44,6 +46,7 @@ int Setup_Time = 0, Process_Time = 0, Postop_Time = 0, Search_Param = 0, Optimiz
 bool isSearchByIterarion = true, isErrorWindowOpened = false, isProgressWindowOpened = false;
 int iProgressPosition = 0;
 
+static HBRUSH DefaultBKBrush = CreateSolidBrush(RGB(255, 255, 255));
 
 void Addmenu(HWND);
 void AddControls(HWND);
@@ -58,6 +61,50 @@ void SubWinError(HINSTANCE);// Initialize of ShowError Window
 
 LRESULT CALLBACK ProgressProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK ErrorProc(HWND, UINT, WPARAM, LPARAM);
+
+static int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
+{
+
+	if (uMsg == BFFM_INITIALIZED)
+	{
+		std::string tmp = (const char*)lpData;
+		std::cout << "path: " << tmp << std::endl;
+		SendMessage(hwnd, BFFM_SETSELECTION, TRUE, lpData);
+	}
+
+	return 0;
+}
+
+std::string BrowseFolder()
+{
+	TCHAR path[MAX_PATH];
+
+	BROWSEINFO bi = { 0 };
+	bi.lpszTitle = ("Browse for folder...");
+	bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+	bi.lpfn = BrowseCallbackProc;
+	bi.lParam = (LPARAM)_T("C:\\");
+
+	LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+
+	if (pidl != 0)
+	{
+		//get the name of the folder and put it in path
+		SHGetPathFromIDList(pidl, path);
+
+		//free memory used
+		IMalloc* imalloc = 0;
+		if (SUCCEEDED(SHGetMalloc(&imalloc)))
+		{
+			imalloc->Free(pidl);
+			imalloc->Release();
+		}
+
+		return path;
+	}
+
+	return "";
+}
 
 
 std::string Get_Edit_Text_Value(HWND Current_hWnd) {
@@ -157,6 +204,14 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			SendMessage(hRBTN_ITER, BM_SETCHECK, BST_UNCHECKED, NULL);
 			isSearchByIterarion = false;
 			break;
+		case SELECT_FOLDER: {
+			std::string Selected_filepath = BrowseFolder();
+			int index = GetWindowTextLength(hEdit_FilePath);
+			SetFocus(hEdit_FilePath); // set focus
+			SendMessageA(hEdit_FilePath, EM_SETSEL, (WPARAM)0, (LPARAM)index); // set selection - end of text
+			SendMessageA(hEdit_FilePath, EM_REPLACESEL, 0, (LPARAM)Selected_filepath.c_str());
+			break;
+		}
 		case PGSB_Update:
 			//iProgressPosition += 10;
 			//SendMessage(PreprocessProgressBar, PBM_SETPOS, iProgressPosition, 0);
@@ -188,21 +243,26 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		PostQuitMessage(0);
 		break;
 	case WM_CTLCOLORSTATIC: {
-		HDC hdcStatic = (HDC)wp; // or obtain the static handle in some other way
-		SetBkMode(hdcStatic, TRANSPARENT);
-		SetTextColor(hdcStatic, RGB(0, 0, 0)); // text color
-		//SetBkColor(hdcStatic, RGB(0, 0, 0));
+		HDC hdcStatic = (HDC)wp;
+		SetTextColor(hdcStatic, RGB(0, 0, 0));
+		SetBkColor(hdcStatic, RGB(255, 255, 255));
 
-		return (LRESULT)GetStockObject(NULL_BRUSH);
+		return (INT_PTR)DefaultBKBrush;
+		/*HDC hdcStatic = (HDC)wp; // or obtain the static handle in some other way
+		SetBkMode(hdcStatic, OPAQUE);
+		SetTextColor(hdcStatic, RGB(255, 0, 0)); // text color
+		SetBkColor(hdcStatic, RGB(255, 255, 255));
+
+		return (LRESULT)GetStockObject(NULL_BRUSH);*/
 		break;
 	}
-	case WM_CTLCOLORBTN: {
+	/*case WM_CTLCOLORBTN: {
 		HDC hdcStatic = (HDC)wp; // or obtain the static handle in some other way
 		SetTextColor(hdcStatic, RGB(255, 255, 255)); // text color
 		SetBkColor(hdcStatic, RGB(0, 0, 0));
 		return (LRESULT)GetStockObject(NULL_BRUSH);
 		break;
-	}
+	}*/
 	default:
 		return DefWindowProcW(hWnd, msg, wp, lp);
 	}
@@ -288,17 +348,21 @@ void AddControls(HWND hWnd) {
 	CreateWindowW(L"static", L"分鐘", WS_VISIBLE | WS_CHILD  | SS_LEFT,
 		240, 260, 35, 30, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"Process Time:", WS_VISIBLE | WS_CHILD  | SS_LEFT,
-		20, 310, 100, 30, hWnd, NULL, NULL, NULL);
+		20, 300, 100, 30, hWnd, NULL, NULL, NULL);
 	hEdit_Process_Time = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
-		130, 310, 100, 25, hWnd, NULL, NULL, NULL);
+		130, 300, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"分鐘", WS_VISIBLE | WS_CHILD  | SS_LEFT,
-		240, 310, 35, 30, hWnd, NULL, NULL, NULL);
+		240, 300, 35, 30, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"Postop Time:", WS_VISIBLE | WS_CHILD  | SS_LEFT,
-		20, 370, 100, 30, hWnd, NULL, NULL, NULL);
+		20, 340, 100, 30, hWnd, NULL, NULL, NULL);
 	hEdit_Postop_Time = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
-		130, 370, 100, 25, hWnd, NULL, NULL, NULL);
+		130, 340, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"分鐘", WS_VISIBLE | WS_CHILD  | SS_LEFT,
-		240, 370, 35, 30, hWnd, NULL, NULL, NULL);
+		240, 340, 35, 30, hWnd, NULL, NULL, NULL);
+	CreateWindowW(L"static", L"搜尋深度:", WS_VISIBLE | WS_CHILD | SS_LEFT,
+		20, 380, 100, 30, hWnd, NULL, NULL, NULL);
+	hEdit_Search_Depth = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
+		130, 380, 100, 25, hWnd, NULL, NULL, NULL);
 
 	//Section 3: Goal & End condition
 	CreateWindowW(L"Button", L"目標、終止條件", WS_VISIBLE | WS_CHILD  | BS_GROUPBOX, 
@@ -337,8 +401,10 @@ void AddControls(HWND hWnd) {
 		610, 260, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"路徑:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		550, 310, 40, 30, hWnd, NULL, NULL, NULL);
-	hEdit_FilePath = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL ,
-		610, 310, 200, 25, hWnd, NULL, NULL, NULL);
+	hEdit_FilePath = CreateWindowW(L"Edit", L"C:\\", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_READONLY | ES_AUTOHSCROLL ,
+		610, 310, 300, 25, hWnd, NULL, NULL, NULL);
+	CreateWindowW(L"Button", L"…", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON , 910, 310, 20, 25, hWnd,
+		(HMENU)SELECT_FOLDER, NULL, NULL);
 
 	CreateWindowW(L"Button", L"Confirm", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 960, 400, 70, 30, hWnd,
 		(HMENU)BTN_CONFIRM, NULL, NULL);
@@ -449,7 +515,7 @@ LRESULT CALLBACK ErrorProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		isErrorWindowOpened = false;
 		DestroyWindow(hWnd);
 		break;
-	case WM_CTLCOLOREDIT: {
+	case WM_CTLCOLORSTATIC: {
 		HDC hdcStatic = (HDC)wp; // or obtain the static handle in some other way
 		SetBkMode((HDC)wp, TRANSPARENT);
 		SetTextColor(hdcStatic, RGB(0, 0, 0)); // text color
