@@ -9,10 +9,10 @@ A C++ GUI application based on win32 API
 In this project, using some basic controls(edit, static, button and so on)
 to setup parameters, also, subwindow are implement in the project too.
 
-##Screenshot:
+## Screenshot:
 ![image](https://user-images.githubusercontent.com/28781756/136665483-c40e2e13-30c9-4e10-a74b-95961c5d14ef.png)
 
-##TODO: 
+## TODO: 
 Coloring function, clean code
 
 Note: 雙十廉價勞工
