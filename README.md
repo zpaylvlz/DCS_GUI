@@ -1,5 +1,5 @@
 # Delta_DCS_GUI
-##Reference to: https://www.youtube.com/watch?v=8GCvZs55mEM&list=PLWzp0Bbyy_3i750dsUj7yq4JrPOIUR_NK
+## Reference to: https://www.youtube.com/watch?v=8GCvZs55mEM&list=PLWzp0Bbyy_3i750dsUj7yq4JrPOIUR_NK
 ### IDE: Visual Studio 2019
 ### Set program entry point to subwindow
 => Solution properties>Linker>System>SubSystem and set to Windows
