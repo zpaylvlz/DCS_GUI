@@ -5,15 +5,17 @@
 #include <CommCtrl.h>
 #include <uxtheme.h>
 #include <Winuser.h>
-#include <atlstr.h>//to use Cstring
+#include <atlstr.h>
 #include <iostream>
 #include <fstream>
 #include <shlobj.h>
 
+//Set controls to morden styles
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
-processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")//Set controls to morden styles
+processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
+//WM_COMMAND Event
 #define FILE_OPEN_EVENT 111
 #define FILE_EXIT_EVENT 112
 #define HELP_ABOUT_TAG 113
@@ -27,17 +29,22 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")//Se
 #define ERROR_CONFIRM 121
 #define SEND_ERROR_MSG 122
 #define SELECT_FOLDER 123
-#define PGSB_Update 689
+#define PGSB_Update 689//this is a command for testing
 
+// Handle of MainWindow controls
 HMENU hMenu;
-HWND Error_Window;
+
+HWND MainWindow;
 HWND hEdit_Database_IP, hEdit_Database_Port, hEdit_Database_Account, hEdit_Database_Password,
 hEdit_Datatable_Name, hEdit_Setup_Time, hEdit_Process_Time, hEdit_Postop_Time, hEdit_Search_Param,
-hEdit_Time_Gap, hEdit_Search_Depth, hCombox_KPI, hRBTN_ITER, hRBTN_TIME;// Handle of MainWindow controls
+hEdit_Time_Gap, hEdit_Search_Depth, hCombox_KPI, hRBTN_ITER, hRBTN_TIME, hStatic_Time_Gap, 
+hStatic_Search_Param;
 
+// Handle of ShowProgress controls
 HWND PreprocessProgressBar, RunTimeProgressBar, hEdit_FileName, hEdit_FilePath, 
-hBtn_Cancel, hBtn_Prev, hBtn_Done;// Handle of ShowProgress controls
+hBtn_Cancel, hBtn_Prev, hBtn_Done;
 
+HWND Error_Window;
 HWND hEdit_Error_Message;
 
 std::string DatabaseIP = "", DataTableName = "", DatabasePort = "", DatabaseAccount = "", 
@@ -103,7 +110,7 @@ std::string BrowseFolder()
 		return path;
 	}
 
-	return "";
+	return "C:\\";
 }
 
 
@@ -131,12 +138,13 @@ std::string Get_ComboBox_Text_Value(HWND Current_hWnd) {
 int Get_Edit_Int_Value(HWND Current_hWnd) {
 	wchar_t GetControlValue[10] = { 0 };
 	GetWindowTextW(Current_hWnd, GetControlValue, 10);
-	// to get edit control's input text, the instance must be declare as global
+	// to get edit control's input text, the instance must be declare as global, or fetch by GetDlgItem function
 	int SetByValue = 0;
 	SetByValue = wcstol(GetControlValue, 0, 10);
 	return SetByValue;
 }
 
+//Callback function for main window
 LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	switch (msg) {
 		static HINSTANCE hInstance;
@@ -167,6 +175,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			FileName = Get_Edit_Text_Value(hEdit_FileName);
 			FilePath = Get_Edit_Text_Value(hEdit_FilePath);
 
+			//testing section for showing all sub window, set it to the right position
 			if (!isProgressWindowOpened) {
 				isProgressWindowOpened = true;
 				displayProgress(hWnd);
@@ -197,11 +206,15 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		case RBTN_SWITCH_ITER:
 			SendMessage(hRBTN_ITER, BM_SETCHECK, BST_CHECKED, NULL);
 			SendMessage(hRBTN_TIME, BM_SETCHECK, BST_UNCHECKED, NULL);
+			SetWindowTextW(hStatic_Search_Param, (L"Iteration"));
+			SetWindowTextW(hStatic_Time_Gap, (L"個Iteration"));
 			isSearchByIterarion = true;
 			break;
 		case RBTN_SWITCH_TIME:
 			SendMessage(hRBTN_TIME, BM_SETCHECK, BST_CHECKED, NULL);
 			SendMessage(hRBTN_ITER, BM_SETCHECK, BST_UNCHECKED, NULL);
+			SetWindowTextW(hStatic_Search_Param, (L"分鐘"));
+			SetWindowTextW(hStatic_Time_Gap, (L"分鐘"));
 			isSearchByIterarion = false;
 			break;
 		case SELECT_FOLDER: {
@@ -226,15 +239,15 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			break;
 		}
 		break;
-	case WM_KEYDOWN:
+	/*case WM_KEYDOWN:
 		switch (wp)
 		{
 		case VK_TAB:
-			HWND hWndCurrent = GetNextWindow(GetFocus(), GW_HWNDNEXT);
-			SetFocus(hWndCurrent);
+			//HWND hWndCurrent = GetNextWindow(GetFocus(), GW_HWNDNEXT);
+			//SetFocus(hWndCurrent);
 			break;
 		}
-		break;
+		break;*/
 	case WM_CREATE:
 		Addmenu(hWnd);
 		AddControls(hWnd);
@@ -248,12 +261,6 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		SetBkColor(hdcStatic, RGB(255, 255, 255));
 
 		return (INT_PTR)DefaultBKBrush;
-		/*HDC hdcStatic = (HDC)wp; // or obtain the static handle in some other way
-		SetBkMode(hdcStatic, OPAQUE);
-		SetTextColor(hdcStatic, RGB(255, 0, 0)); // text color
-		SetBkColor(hdcStatic, RGB(255, 255, 255));
-
-		return (LRESULT)GetStockObject(NULL_BRUSH);*/
 		break;
 	}
 	/*case WM_CTLCOLORBTN: {
@@ -285,13 +292,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdsho
 	WinProgress(hInst);
 	SubWinError(hInst);
 	//
-	CreateWindowW(L"WindowClass", L"Window", (WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX) | WS_VISIBLE, 0, 0, 1080, 520
+	MainWindow = CreateWindowW(L"WindowClass", L"Window", (WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX) | WS_VISIBLE, 0, 0, 1080, 520
 		, NULL, NULL, NULL, NULL);
 	MSG msg = { 0 };
 
 	while (GetMessage(&msg, NULL, NULL, NULL)) {
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
+		if (IsDialogMessage(MainWindow, &msg)) {
+
+		}
+		else {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		
 	}
 	return 0;
 }
@@ -363,6 +376,8 @@ void AddControls(HWND hWnd) {
 		20, 380, 100, 30, hWnd, NULL, NULL, NULL);
 	hEdit_Search_Depth = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
 		130, 380, 100, 25, hWnd, NULL, NULL, NULL);
+	CreateWindowW(L"static", L"機台數", WS_VISIBLE | WS_CHILD | SS_LEFT,
+		240, 380, 50, 30, hWnd, NULL, NULL, NULL);
 
 	//Section 3: Goal & End condition
 	CreateWindowW(L"Button", L"目標、終止條件", WS_VISIBLE | WS_CHILD  | BS_GROUPBOX, 
@@ -370,20 +385,24 @@ void AddControls(HWND hWnd) {
 	CreateWindowW(L"static", L"KPI:", WS_VISIBLE | WS_CHILD  | SS_LEFT,
 		550, 50, 40, 30, hWnd, NULL, NULL, NULL);	
 	hCombox_KPI = CreateWindowW(L"COMBOBOX", L"", CBS_DROPDOWN | CBS_HASSTRINGS | WS_VISIBLE | WS_CHILD | WS_BORDER,
-		680, 50, 200, 300, hWnd, NULL, NULL, NULL);
+		700, 50, 200, 300, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"搜尋選項:", WS_VISIBLE | WS_CHILD  | SS_LEFT,
 		550, 90, 70, 30, hWnd, NULL, NULL, NULL);
 	hEdit_Search_Param = CreateWindowW(L"Edit", L"40", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
-		680, 90, 100, 25, hWnd, NULL, NULL, NULL);
-	CreateWindowW(L"static", L"產出優化解間隔:", WS_VISIBLE | WS_CHILD  | SS_LEFT,
-		550, 130, 120, 30, hWnd, NULL, NULL, NULL);
+		700, 90, 100, 25, hWnd, NULL, NULL, NULL);
+	hStatic_Search_Param = CreateWindowW(L"static", L"Iteration", WS_VISIBLE | WS_CHILD | SS_LEFT,
+		810, 90, 70, 30, hWnd, NULL, NULL, NULL);
+	CreateWindowW(L"static", L"產出優化解間隔:    每", WS_VISIBLE | WS_CHILD  | SS_LEFT,
+		550, 130, 145, 30, hWnd, NULL, NULL, NULL);
 	hEdit_Time_Gap = CreateWindowW(L"Edit", L"5", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
-		680, 130, 100, 25, hWnd, NULL, NULL, NULL);
+		700, 130, 100, 25, hWnd, NULL, NULL, NULL);
+	hStatic_Time_Gap = CreateWindowW(L"static", L"個Iteration", WS_VISIBLE | WS_CHILD | SS_LEFT,
+		810, 130, 70, 30, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"單位:", WS_VISIBLE | WS_CHILD |SS_LEFT,
 		550, 165, 40, 30, hWnd, NULL, NULL, NULL);
-	hRBTN_ITER = CreateWindowW(L"Button", L"Iteration", WS_VISIBLE | WS_CHILD | WS_GROUP | WS_TABSTOP | BS_AUTORADIOBUTTON,
+	hRBTN_ITER = CreateWindowW(L"Button", L"Iteration", WS_VISIBLE | WS_CHILD | WS_GROUP | BS_AUTORADIOBUTTON,
 		610, 160, 70, 30, hWnd,(HMENU)RBTN_SWITCH_ITER, NULL, NULL);
-	hRBTN_TIME = CreateWindowW(L"Button", L"分鐘", WS_VISIBLE | WS_CHILD | WS_GROUP | WS_TABSTOP | BS_AUTORADIOBUTTON, 
+	hRBTN_TIME = CreateWindowW(L"Button", L"分鐘", WS_VISIBLE | WS_CHILD | WS_GROUP | BS_AUTORADIOBUTTON, 
 		710, 160, 50, 30, hWnd,(HMENU)RBTN_SWITCH_TIME, NULL, NULL);	
 	SendMessageW(hCombox_KPI, CB_ADDSTRING, 0, (LPARAM)KPIItem[0]);
 	SendMessageW(hCombox_KPI, CB_ADDSTRING, 0, (LPARAM)KPIItem[1]);
@@ -449,6 +468,7 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			ShowWindow(hBtn_Cancel, SW_HIDE);
 			ShowWindow(hBtn_Prev, SW_SHOW);
 			ShowWindow(hBtn_Done, SW_SHOW);
+			//TODO: set cancel process function and generate a temp file for last iteration
 			break;
 		case PRGS_PREV_STEP:
 			//DestroyWindow(hWnd);
@@ -456,6 +476,7 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			ShowWindow(hBtn_Cancel, SW_SHOW);
 			ShowWindow(hBtn_Prev, SW_HIDE);
 			ShowWindow(hBtn_Done, SW_HIDE);
+			//TODO: reset mainwindow function or close program
 			break;
 		case PRGS_DONE:
 			DestroyWindow(hWnd);
@@ -517,7 +538,7 @@ LRESULT CALLBACK ErrorProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		break;
 	case WM_CTLCOLORSTATIC: {
 		HDC hdcStatic = (HDC)wp; // or obtain the static handle in some other way
-		SetBkMode((HDC)wp, TRANSPARENT);
+		SetBkMode((HDC)wp, OPAQUE);
 		SetTextColor(hdcStatic, RGB(0, 0, 0)); // text color
 		SetBkColor(hdcStatic, RGB(255, 255, 255));
 		
