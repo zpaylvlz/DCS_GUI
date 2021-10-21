@@ -9,7 +9,8 @@
 #include <iostream>
 #include <fstream>
 #include <shlobj.h>
-
+#include <vector>
+#include <time.h>
 //Set controls to morden styles
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
@@ -45,7 +46,7 @@ hStatic_Search_Param, hGBX1;
 HWND PreprocessProgressBar, RunTimeProgressBar, hEdit_FileName, hEdit_FilePath,
 hBtn_Cancel, hBtn_Prev, hBtn_Done;
 
-HWND Error_Window;
+HWND Progress_Window, Error_Window;
 HWND hEdit_Error_Message;
 
 std::string DatabaseIP = "", DataTableName = "", DatabasePort = "", DatabaseAccount = "",
@@ -53,6 +54,8 @@ DatabasePassword = "", KPI = "", FileName = "", FilePath = "";
 int Setup_Time = 0, Process_Time = 0, Postop_Time = 0, Search_Param = 0, Optimize_Time_Gap = 0;
 bool isSearchByIterarion = false, isErrorWindowOpened = false, isProgressWindowOpened = false;
 int iProgressPosition = 0;
+
+static bool isReDraw = false;
 
 static HBRUSH DefaultBKBrush = CreateSolidBrush(RGB(255, 255, 255));
 
@@ -69,6 +72,39 @@ void SubWinError(HINSTANCE);// Initialize of ShowError Window
 
 LRESULT CALLBACK ProgressProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK ErrorProc(HWND, UINT, WPARAM, LPARAM);
+
+class Process {
+public:
+	int start_time;
+	int end_time;
+	Process(int s, int e) {
+		this->start_time = s;
+		this->end_time = e;
+	}
+	Process() {
+		start_time = 0;
+		end_time = 0;
+	}
+};
+class LotUnit
+{
+public:
+	time_t move_in_time, move_out_time;
+	LotUnit(time_t mit, time_t mot) {
+		move_in_time = mit;
+		move_out_time = mot;
+	}
+};
+
+class Machine {
+public:
+	std::string MachineName;
+	std::vector<LotUnit> ProcessQueue;
+	Machine(std::string s) {
+		this->MachineName = s;
+	}
+};
+
 
 static int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
 {
@@ -235,8 +271,8 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		}
 		case OPEN_ERROR_WINDOW:
 			if (!isErrorWindowOpened) {
-				isErrorWindowOpened = true;
-				displayError(hWnd);
+				//isErrorWindowOpened = true;
+				//displayError(hWnd);
 			}
 			break;
 		case PGSB_Update:
@@ -256,6 +292,10 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	case WM_CREATE: {
 		Addmenu(hWnd);
 		AddControls(hWnd);
+		HFONT hFont = CreateFont(1, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, ANSI_CHARSET,
+			OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+			DEFAULT_PITCH | FF_DONTCARE, TEXT("Tahoma"));
+		SendMessage(MainWindow, WM_SETFONT, (WPARAM)hFont, TRUE);
 		break;
 	}
 	case WM_PAINT: {
@@ -277,6 +317,10 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		EndPaint(hWnd, &ps);
 		break;
 	}
+	case WM_SETFONT: {
+
+		break;
+	}
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
@@ -285,9 +329,9 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		
 		if (lp == (LPARAM)hEdit_FilePath) {
 			SetBkMode((HDC)wp, OPAQUE);
-			SetTextColor(hdcStatic, RGB(0, 255, 0)); // text color
-			SetBkColor(hdcStatic, RGB(0, 0, 0));
-			return (INT_PTR)CreateSolidBrush(RGB(0, 0, 0));
+			SetTextColor(hdcStatic, RGB(233, 85, 105)); // text color
+			SetBkColor(hdcStatic, RGB(255, 255, 255));
+			return (INT_PTR)CreateSolidBrush(RGB(255, 255, 255));
 		}
 		else
 		{
@@ -306,8 +350,8 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR args, int ncmdshow) {
 	//HINSTANCE: Program entry point
 	WNDCLASSW WinC = { 0 };
-	HBRUSH WinBkBrush = CreateSolidBrush(RGB(255, 255, 255));
-	WinC.hbrBackground = WinBkBrush;
+	HBRUSH WinBkBrush = CreateSolidBrush(RGB(0, 0, 0));
+	WinC.hbrBackground = (HBRUSH)COLOR_WINDOW;
 	WinC.hCursor = LoadCursor(NULL, IDC_ARROW);
 	WinC.hInstance = hInst;
 	WinC.lpszClassName = L"WindowClass";
@@ -350,7 +394,7 @@ void Addmenu(HWND hWnd) {
 
 	AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, _T("File"));
 	AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hHelpMenu, _T("Help"));
-
+	
 	SetMenu(hWnd, hMenu);
 }
 void AddControls(HWND hWnd) {
@@ -360,7 +404,7 @@ void AddControls(HWND hWnd) {
 		NULL, NULL, NULL);
 	CreateWindowW(L"static", L"資料庫IP:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		20, 50, 70, 30, hWnd, NULL, NULL, NULL);
-	hEdit_Database_IP = CreateWindowW(L"Edit", L"140.114.54.25", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL,
+	hEdit_Database_IP = CreateWindowW(L"Edit", L"140.114.54.23", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL,
 		110, 50, 120, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"資料庫Port:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		250, 50, 80, 30, hWnd, NULL, NULL, NULL);
@@ -372,11 +416,11 @@ void AddControls(HWND hWnd) {
 		110, 110, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"資料庫密碼:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		250, 110, 90, 30, hWnd, NULL, NULL, NULL);
-	hEdit_Database_Password = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_PASSWORD,
-		350, 110, 100, 25, hWnd, NULL, NULL, NULL);
+	hEdit_Database_Password = CreateWindowW(L"Edit", L"0000", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_PASSWORD,
+		350, 110, 150, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"資料表名稱:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		20, 170, 90, 30, hWnd, NULL, NULL, NULL);
-	hEdit_Datatable_Name = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL,
+	hEdit_Datatable_Name = CreateWindowW(L"Edit", L"DCS_2_5_Unimicron", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL,
 		110, 170, 200, 25, hWnd, NULL, NULL, NULL);
 
 	//Section 2: Basic Parameter Setting
@@ -384,25 +428,25 @@ void AddControls(HWND hWnd) {
 		NULL, NULL, NULL);
 	CreateWindowW(L"static", L"Setup Time:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		20, 260, 100, 30, hWnd, NULL, NULL, NULL);
-	hEdit_Setup_Time = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
+	hEdit_Setup_Time = CreateWindowW(L"Edit", L"14400", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
 		130, 260, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"分鐘", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		240, 260, 35, 30, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"Process Time:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		20, 300, 100, 30, hWnd, NULL, NULL, NULL);
-	hEdit_Process_Time = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
+	hEdit_Process_Time = CreateWindowW(L"Edit", L"30", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
 		130, 300, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"分鐘", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		240, 300, 35, 30, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"Postop Time:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		20, 340, 100, 30, hWnd, NULL, NULL, NULL);
-	hEdit_Postop_Time = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
+	hEdit_Postop_Time = CreateWindowW(L"Edit", L"60", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
 		130, 340, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"分鐘", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		240, 340, 35, 30, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"搜尋深度:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		20, 380, 100, 30, hWnd, NULL, NULL, NULL);
-	hEdit_Search_Depth = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
+	hEdit_Search_Depth = CreateWindowW(L"Edit", L"3", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL | ES_NUMBER,
 		130, 380, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"機台數", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		240, 380, 50, 30, hWnd, NULL, NULL, NULL);
@@ -413,7 +457,7 @@ void AddControls(HWND hWnd) {
 	CreateWindowW(L"static", L"KPI:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		550, 50, 40, 30, hWnd, NULL, NULL, NULL);
 	hCombox_KPI = CreateWindowW(L"COMBOBOX", L"", CBS_DROPDOWN | CBS_HASSTRINGS | CBS_OEMCONVERT | WS_VISIBLE | WS_CHILD | WS_BORDER,
-		700, 50, 220, 300, hWnd, NULL, NULL, NULL);	
+		610, 50, 220, 300, hWnd, NULL, NULL, NULL);	
 	CreateWindowW(L"static", L"單位:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		550, 90, 40, 30, hWnd, NULL, NULL, NULL);
 	hRBTN_ITER = CreateWindowW(L"Button", L"Iteration", WS_VISIBLE | WS_CHILD | WS_GROUP | BS_AUTORADIOBUTTON,
@@ -446,11 +490,11 @@ void AddControls(HWND hWnd) {
 		530, 230, 500, 160, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"檔名:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		550, 260, 40, 30, hWnd, NULL, NULL, NULL);
-	hEdit_FileName = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL,
+	hEdit_FileName = CreateWindowW(L"Edit", L"Solution", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOVSCROLL,
 		610, 260, 100, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"路徑:", WS_VISIBLE | WS_CHILD | SS_LEFT,
 		550, 310, 40, 30, hWnd, NULL, NULL, NULL);
-	hEdit_FilePath = CreateWindowW(L"Edit", L"C:\\", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_READONLY | ES_AUTOHSCROLL,
+	hEdit_FilePath = CreateWindowW(L"Edit", L"C:\\Windows\\System32", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_READONLY | ES_AUTOHSCROLL,
 		610, 310, 300, 25, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"Button", L"…", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 910, 310, 20, 25, hWnd,
 		(HMENU)SELECT_FOLDER, NULL, NULL);
@@ -458,27 +502,35 @@ void AddControls(HWND hWnd) {
 	CreateWindowW(L"Button", L"Confirm", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 960, 400, 70, 30, hWnd,
 		(HMENU)BTN_CONFIRM, NULL, NULL);
 
+
 	/*CreateWindowW(L"Button", L"SendError", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 550, 400, 100, 30, hWnd,
 		(HMENU)PGSB_Update, NULL, NULL);*/
 }
 void AddProgressControl(HWND hWnd) {
+	CreateWindowW(L"Button", L"優化進程", WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 0, 450, 200, hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"前處理進度:", WS_VISIBLE | WS_CHILD | SS_LEFT,
-		10, 20, 100, 30, hWnd, NULL, NULL, NULL);
-	PreprocessProgressBar = CreateWindowEx(0, PROGRESS_CLASS, (LPTSTR)NULL, WS_CHILD | WS_VISIBLE | PBS_SMOOTH, 130, 20, 300, 30,
+		20, 50, 85, 20, hWnd, NULL, NULL, NULL);
+	PreprocessProgressBar = CreateWindowEx(0, PROGRESS_CLASS, (LPTSTR)NULL, WS_CHILD | WS_VISIBLE | PBS_SMOOTH, 150, 50, 300, 30,
 		hWnd, NULL, NULL, NULL);
 	CreateWindowW(L"static", L"優化進度:", WS_VISIBLE | WS_CHILD | SS_LEFT,
-		10, 80, 100, 30, hWnd, NULL, NULL, NULL);
-	RunTimeProgressBar = CreateWindowEx(0, PROGRESS_CLASS, (LPTSTR)NULL, WS_CHILD | WS_VISIBLE | PBS_SMOOTH, 130, 80, 300, 30,
+		20, 100, 75, 20, hWnd, NULL, NULL, NULL);
+	RunTimeProgressBar = CreateWindowEx(0, PROGRESS_CLASS, (LPTSTR)NULL, WS_CHILD | WS_VISIBLE | PBS_SMOOTH, 150, 100, 300, 30,
 		hWnd, NULL, NULL, NULL);
 
-	hBtn_Cancel = CreateWindowW(L"Button", L"Cancel", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 0, 150, 480, 30, hWnd,
+	hBtn_Cancel = CreateWindowW(L"Button", L"Cancel", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 150, 420, 30, hWnd,
 		(HMENU)PRGS_CANCEL, NULL, NULL);
 
-	hBtn_Prev = CreateWindowW(L"Button", L"Previous step", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 0, 150, 180, 30, hWnd,
+	hBtn_Prev = CreateWindowW(L"Button", L"Previous step", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 150, 140, 30, hWnd,
 		(HMENU)PRGS_PREV_STEP, NULL, NULL);
 
-	hBtn_Done = CreateWindowW(L"Button", L"Done", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 180, 150, 300, 30, hWnd,
+	hBtn_Done = CreateWindowW(L"Button", L"Done", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 160, 150, 280, 30, hWnd,
 		(HMENU)PRGS_DONE, NULL, NULL);
+
+	CreateWindowW(L"Button", L"初始解資訊", WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 10, 210, 220, 150, hWnd, NULL, NULL, NULL);
+
+	CreateWindowW(L"Button", L"優化解資訊", WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 240, 210, 220, 150, hWnd, NULL, NULL, NULL);
+
+	CreateWindowW(L"Button", L"KPI展示圖", WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 470, 0, 700, 650, hWnd, NULL, NULL, NULL);
 }
 void AddErrorControl(HWND hWnd) {
 	CreateWindowW(L"Button", L"錯誤訊息", WS_VISIBLE | WS_CHILD | WS_BORDER | BS_GROUPBOX,
@@ -502,9 +554,10 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			break;
 		case PRGS_PREV_STEP:
 			//DestroyWindow(hWnd);
-			SendMessage(MainWindow, WM_COMMAND, OPEN_ERROR_WINDOW, 0);
+			//SendMessage(MainWindow, WM_COMMAND, OPEN_ERROR_WINDOW, 0);
 			SendMessage(Error_Window, WM_COMMAND, SEND_ERROR_MSG, 0);
-			
+			RedrawWindow(Progress_Window, NULL, NULL, RDW_INVALIDATE);
+
 			ShowWindow(hBtn_Cancel, SW_SHOW);
 			ShowWindow(hBtn_Prev, SW_HIDE);
 			ShowWindow(hBtn_Done, SW_HIDE);
@@ -524,6 +577,111 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		isProgressWindowOpened = false;
 		DestroyWindow(hWnd);
 		break;
+	case WM_PAINT: {
+		PAINTSTRUCT     ps;
+		HDC             hdc;
+		HBRUSH DefaultBG = CreateSolidBrush(RGB(255, 255, 255));
+		hdc = BeginPaint(hWnd, &ps);
+		RECT KPI_Region;
+		SetRect(&KPI_Region, 470, 10, 1170, 650);
+		FillRect(hdc, &KPI_Region, DefaultBG);
+		SelectObject(hdc, CreatePen(PS_SOLID, 1, RGB(0, 0, 0)));
+		MoveToEx(hdc, 550, 50, NULL);
+		LineTo(hdc, 550, 600); // Y-axis has length of 550
+		MoveToEx(hdc, 550, 50, NULL);
+		LineTo(hdc, 555, 55);
+		MoveToEx(hdc, 550, 50, NULL);
+		LineTo(hdc, 545, 55);
+
+		MoveToEx(hdc, 550, 600, NULL);
+		LineTo(hdc, 1120, 600);// X-axis has length of 570
+		MoveToEx(hdc, 1120, 600, NULL);
+		LineTo(hdc, 1115, 595);
+		MoveToEx(hdc, 1120, 600, NULL);
+		LineTo(hdc, 1115, 605);
+		
+		//Test Data Section
+		std::vector<Machine> M_List;
+		Machine M1("EPGPMAE001");
+		Machine M2("ABFCLNE001");
+		Machine M3("AOIAOSE101");
+		Machine M4("ZP4YL053R1");
+		time_t now_in_sec = time(0);
+
+		for (int i = 0; i < 5; i++) {
+			int toadd = i * 30;
+			LotUnit temp(now_in_sec + toadd, now_in_sec + 30 + toadd);
+			M1.ProcessQueue.push_back(temp);
+		}
+		for (int i = 0; i < 5; i++) {
+			int toadd = i * 50;
+			LotUnit temp(now_in_sec + toadd, 50 + now_in_sec + toadd);
+			M2.ProcessQueue.push_back(temp);
+		}
+		M3.ProcessQueue.push_back(LotUnit(now_in_sec, now_in_sec + 80));
+		M3.ProcessQueue.push_back(LotUnit(now_in_sec+80, now_in_sec + 160));
+		M3.ProcessQueue.push_back(LotUnit(now_in_sec+220, now_in_sec + 340));
+		M3.ProcessQueue.push_back(LotUnit(now_in_sec+340, now_in_sec + 480));
+		M4.ProcessQueue.push_back(LotUnit(now_in_sec + 20, now_in_sec + 510));
+		M_List.push_back(M1);
+		M_List.push_back(M2);
+		M_List.push_back(M3);
+		M_List.push_back(M1);
+		M_List.push_back(M2);
+		M_List.push_back(M3);
+		M_List.push_back(M1);
+		M_List.push_back(M2);
+		M_List.push_back(M3);
+		M_List.push_back(M4);
+
+		SetRect(&KPI_Region, 480, 25, 550, 45);
+		DrawText(hdc, _T("Machine"), -1, &KPI_Region, DT_LEFT | DT_TOP);
+		SetRect(&KPI_Region, 1050, 610, 1150, 630);
+		DrawText(hdc, _T("Time(分鐘)"), -1, &KPI_Region, DT_LEFT | DT_TOP);
+		SelectObject(hdc, CreateFont(12,0 ,0, 0, FW_DONTCARE, 0, 0, 0, 0, 0, 0, 0, 0, _T("Arial")));
+		int GraphGap = (530 - 10 * (M_List.size() - 1)) / (M_List.size() - 1);
+		for (int i = 0; i < M_List.size(); i++) {
+			SetRect(&KPI_Region, 480, 70 + i * GraphGap, 540, 120 + i * GraphGap);
+			DrawText(hdc, _T(M_List[i].MachineName.c_str()), -1, &KPI_Region, DT_WORDBREAK | DT_EDITCONTROL);
+
+			if (M_List[i].ProcessQueue.size() > 1) {
+				time_t last_move_in = M_List[i].ProcessQueue[0].move_in_time;
+				time_t last_move_out = M_List[i].ProcessQueue[0].move_out_time;
+				for (int j = 1; j < M_List[i].ProcessQueue.size(); j++) {
+					if (M_List[i].ProcessQueue[j].move_in_time == last_move_out) {
+						last_move_out = M_List[i].ProcessQueue[j].move_out_time;
+					}
+					else {
+						double Gannt_size = last_move_out - last_move_in;
+						int Gannt_start = last_move_in - now_in_sec;
+						SetRect(&KPI_Region, 550 + Gannt_start, 70 + i * GraphGap,
+						550 + (int)Gannt_size, 80 + i * GraphGap);
+						FillRect(hdc, &KPI_Region, CreateSolidBrush(RGB(0, 255, 0)));
+						last_move_in = M_List[i].ProcessQueue[j].move_in_time;
+						last_move_out = M_List[i].ProcessQueue[j].move_out_time;
+					}
+				}
+				double Gannt_size = last_move_out - last_move_in;
+				int Gannt_start = last_move_in - now_in_sec;
+				SetRect(&KPI_Region, 550 + Gannt_start, 70 + i * GraphGap,
+					550 + (int)Gannt_size, 80 + i * GraphGap);
+				FillRect(hdc, &KPI_Region, CreateSolidBrush(RGB(0, 0, 0)));
+			}
+
+			else {
+				double Gannt_size = M_List[i].ProcessQueue[0].move_out_time - M_List[i].ProcessQueue[0].move_in_time;
+				int Gannt_start = M_List[i].ProcessQueue[0].move_in_time - now_in_sec;
+
+				SetRect(&KPI_Region, 550 + Gannt_start, 70 + i * GraphGap,
+					550 + (int)Gannt_size, 80 + i * GraphGap);
+				FillRect(hdc, &KPI_Region, CreateSolidBrush(RGB(255, 0, 0)));
+				
+			}
+
+		}
+		EndPaint(hWnd, &ps);
+		break;
+	}
 	default:
 		return DefWindowProcW(hWnd, msg, wp, lp);
 	}
@@ -531,9 +689,9 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 void WinProgress(HINSTANCE hInst) {
 	WNDCLASSW Progress = { 0 };
-	HBRUSH WinBkBrush = CreateSolidBrush(RGB(255, 255, 255));
+	HBRUSH WinBkBrush = CreateSolidBrush(RGB(240, 160, 240));
 	Progress.hbrBackground = WinBkBrush;
-	Progress.hCursor = LoadCursor(NULL, IDC_ARROW);
+	Progress.hCursor = LoadCursor(NULL, IDC_HAND);
 	Progress.hInstance = hInst;
 	Progress.lpszClassName = L"ShowProgress";
 	Progress.lpfnWndProc = ProgressProc;
@@ -541,7 +699,7 @@ void WinProgress(HINSTANCE hInst) {
 }
 
 void displayProgress(HWND hWnd) {
-	CreateWindowW(L"ShowProgress", L"Progress", (WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX) | WS_VISIBLE, 0, 0, 500, 220
+	Progress_Window = CreateWindowW(L"ShowProgress", L"Progress", (WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX) | WS_VISIBLE, 0, 0, 1200, 700
 		, NULL, NULL, NULL, NULL);
 }
 
