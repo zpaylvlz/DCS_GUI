@@ -15,6 +15,6 @@ to setup parameters, also, subwindow are implement in the project too.
 
 
 ## TODO
-More KPI
-Test data from database
+More KPI, 
+Test data from database, 
 Allow user to setup KPI observe range
