@@ -57,6 +57,8 @@ int iProgressPosition = 0;
 
 static bool isReDraw = false;
 
+int KPI_Xaxis = 0;
+
 static HBRUSH DefaultBKBrush = CreateSolidBrush(RGB(255, 255, 255));
 
 void Addmenu(HWND);
@@ -105,7 +107,8 @@ public:
 	}
 };
 
-
+std::vector<Machine> M_List;
+time_t now_in_sec = time(0);
 static int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
 {
 
@@ -552,10 +555,16 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			ShowWindow(hBtn_Done, SW_SHOW);
 			//TODO: set cancel process function and generate a temp file for last iteration
 			break;
-		case PRGS_PREV_STEP:
+		case PRGS_PREV_STEP: {
 			//DestroyWindow(hWnd);
 			//SendMessage(MainWindow, WM_COMMAND, OPEN_ERROR_WINDOW, 0);
-			SendMessage(Error_Window, WM_COMMAND, SEND_ERROR_MSG, 0);
+			//SendMessage(Error_Window, WM_COMMAND, SEND_ERROR_MSG, 0);
+			while (M_List.size() != 0) {
+				M_List.pop_back();
+			}
+			Machine mt("2P4Y1V12");
+			mt.ProcessQueue.push_back(LotUnit(now_in_sec + 60, now_in_sec + 210));
+			M_List.push_back(mt);
 			RedrawWindow(Progress_Window, NULL, NULL, RDW_INVALIDATE);
 
 			ShowWindow(hBtn_Cancel, SW_SHOW);
@@ -563,6 +572,7 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 			ShowWindow(hBtn_Done, SW_HIDE);
 			//TODO: reset mainwindow function or close program
 			break;
+		}
 		case PRGS_DONE:
 			DestroyWindow(hWnd);
 			break;
@@ -601,12 +611,12 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 		LineTo(hdc, 1115, 605);
 		
 		//Test Data Section
-		std::vector<Machine> M_List;
+		
 		Machine M1("EPGPMAE001");
 		Machine M2("ABFCLNE001");
 		Machine M3("AOIAOSE101");
 		Machine M4("ZP4YL053R1");
-		time_t now_in_sec = time(0);
+		
 
 		for (int i = 0; i < 5; i++) {
 			int toadd = i * 30;
@@ -636,9 +646,18 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 		SetRect(&KPI_Region, 480, 25, 550, 45);
 		DrawText(hdc, _T("Machine"), -1, &KPI_Region, DT_LEFT | DT_TOP);
-		SetRect(&KPI_Region, 1050, 610, 1150, 630);
+		SetRect(&KPI_Region, 1050, 625, 1150, 640);
 		DrawText(hdc, _T("Time(╓юда)"), -1, &KPI_Region, DT_LEFT | DT_TOP);
 		SelectObject(hdc, CreateFont(12,0 ,0, 0, FW_DONTCARE, 0, 0, 0, 0, 0, 0, 0, 0, _T("Arial")));
+
+		KPI_Xaxis = 8000;
+		for (int i = 0; i <= 10; i++) {
+			int Axis_mark= i * (KPI_Xaxis / 10);
+			CString Mark2Text;
+			Mark2Text.Format(_T("%d"), Axis_mark);
+			SetRect(&KPI_Region, 540 + (i * 57), 610, 540 + (i * 57 + 20), 620);
+			DrawText(hdc, _T(Mark2Text), -1, &KPI_Region, DT_CENTER | DT_TOP);
+		}
 		int GraphGap = (530 - 10 * (M_List.size() - 1)) / (M_List.size() - 1);
 		for (int i = 0; i < M_List.size(); i++) {
 			SetRect(&KPI_Region, 480, 70 + i * GraphGap, 540, 120 + i * GraphGap);
@@ -689,7 +708,7 @@ LRESULT CALLBACK ProgressProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 void WinProgress(HINSTANCE hInst) {
 	WNDCLASSW Progress = { 0 };
-	HBRUSH WinBkBrush = CreateSolidBrush(RGB(240, 160, 240));
+	HBRUSH WinBkBrush = CreateSolidBrush(RGB(255, 255, 255));
 	Progress.hbrBackground = WinBkBrush;
 	Progress.hCursor = LoadCursor(NULL, IDC_HAND);
 	Progress.hInstance = hInst;
